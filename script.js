@@ -45,6 +45,13 @@ const onlyDigits = (str) => str.replace(/\D/g, '');
 
 const maskCPF = (str) => str.replace(/(\d{3})(\d{3})(\d{3})(\d{0,2})/, '$1.$2.$3-$4');
 const maskCNPJ = (str) => str.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{0,2})/, '$1.$2.$3/$4-$5');
+const maskPhone = (str) => {
+  const digits = onlyDigits(str).slice(0, 11);
+  if (digits.length <= 10) {
+    return digits.replace(/(\d{2})(\d{4})(\d{0,4})/, '($1) $2-$3').replace(/-$/, '');
+  }
+  return digits.replace(/(\d{2})(\d{5})(\d{0,4})/, '($1) $2-$3').replace(/-$/, '');
+};
 
 const formatDate = (str) => {
   if (!str) return '';
@@ -189,11 +196,18 @@ function attachInputEvents() {
     });
   });
 
+  // --- MÁSCARA DE TELEFONE / WHATSAPP ---
+  $('zap').addEventListener('input', (e) => {
+    e.target.value = maskPhone(e.target.value);
+  });
+
+  // --- MÁSCARA DE PLACA (ABC-1D23 ou ABC-1234) ---
   $('placa').addEventListener('input', (e) => {
-    e.target.value = e.target.value
-      .toUpperCase()
-      .replace(/[^A-Z0-9-]/g, '')
-      .slice(0, 8);
+    let v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
+    if (v.length > 3) {
+      v = v.slice(0, 3) + '-' + v.slice(3);
+    }
+    e.target.value = v;
   });
 
   ['cliente', 'rep'].forEach((id) => {
