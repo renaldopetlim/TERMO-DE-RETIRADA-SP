@@ -12,7 +12,8 @@ const SCHEMA = [
     ['nfe', 'NF-e Nº'],
     ['orc', 'Orçamento Nº'],
     ['valor', 'Valor total da nota fiscal (R$)'],
-    ['prazo', 'Prazo de pagamento']
+    ['forma_pgto', 'Plano de pagamento', 'select', '', ['A VISTA', 'BOLETO', 'CARTÃO DE CRÉDITO']],
+    ['prazo', 'Prazo']
   ]],
   ['3. Representante autorizado à retirada (outorgado)', [
     ['rep', 'Nome completo', 'text', 'full'],
@@ -33,7 +34,7 @@ const SCHEMA = [
 
 const REQ = [
   'pedido', 'emissao', 'cliente', 'doc', 'orc', 
-  'valor', 'prazo', 'rep', 'repcpf', 'dret'
+  'valor', 'forma_pgto', 'rep', 'repcpf', 'dret'
 ];
 
 /* ==========================================================================
@@ -120,11 +121,12 @@ function validateForm() {
   let firstInvalid = null;
 
   document.querySelectorAll('.msg').forEach((m) => (m.textContent = ''));
-  document.querySelectorAll('input').forEach((i) => i.classList.remove('bad'));
+  document.querySelectorAll('input, select').forEach((i) => i.classList.remove('bad'));
 
   const setBad = (id, text) => {
     ok = false;
-    $(id).classList.add('bad');$(`m_${id}`).textContent = text;
+    $(id).classList.add('bad');
+    $(`m_${id}`).textContent = text;
     firstInvalid = firstInvalid || $(id);
   };
 
@@ -162,10 +164,17 @@ function renderForm() {
     <fieldset>
       <legend>${title}</legend>
       <div class="g">
-        ${fields.map(([id, label, type, fullClass]) => `
+        ${fields.map(([id, label, type, fullClass, options]) => `
           <div class="${fullClass || ''}">
             <label for="${id}">${label}${REQ.includes(id) ? ' *' : ''}</label>
-            <input id="${id}" type="${type || 'text'}" autocomplete="off">
+            ${
+              type === 'select'
+                ? `<select id="${id}">
+                    <option value="">Selecione...</option>
+                    ${(options || []).map((opt) => `<option value="${opt}">${opt}</option>`).join('')}
+                   </select>`
+                : `<input id="${id}" type="${type || 'text'}" autocomplete="off">`
+            }
             <div class="msg" id="m_${id}"></div>
           </div>
         `).join('')}
@@ -175,6 +184,34 @@ function renderForm() {
 }
 
 function attachInputEvents() {
+  // --- POP-UP A VISTA ---
+  const formaPgtoSelect = $('forma_pgto');
+  const modal = $('modal-prazo');
+  const btnFecharModal = $('btn-fechar-modal');
+
+  if (formaPgtoSelect) {
+    formaPgtoSelect.addEventListener('change', (e) => {
+      if (e.target.value === 'A VISTA') {
+        modal.classList.remove('hidden');
+      }
+    });
+  }
+
+  if (btnFecharModal) {
+    btnFecharModal.addEventListener('click', () => {
+      modal.classList.add('hidden');
+    });
+  }
+
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        modal.classList.add('hidden');
+      }
+    });
+  }
+
+  // --- MÁSCARAS ---
   $('doc').addEventListener('input', (e) => {
     const d = onlyDigits(e.target.value).slice(0, 14);
     e.target.value = d.length <= 11 ? maskCPF(d) : maskCNPJ(d);
@@ -196,12 +233,10 @@ function attachInputEvents() {
     });
   });
 
-  // --- MÁSCARA DE TELEFONE / WHATSAPP ---
   $('zap').addEventListener('input', (e) => {
     e.target.value = maskPhone(e.target.value);
   });
 
-  // --- MÁSCARA DE PLACA (ABC-1D23 ou ABC-1234) ---
   $('placa').addEventListener('input', (e) => {
     let v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
     if (v.length > 3) {
@@ -218,16 +253,17 @@ function attachInputEvents() {
 }
 
 function resetForm() {
-  document.querySelectorAll('input').forEach((i) => (i.value = ''));
+  document.querySelectorAll('input, select').forEach((i) => (i.value = ''));
   $('emissao').value = getToday();
-  $('dret').value = getToday();$('local').value = 'CD Alça Viária';
+  $('dret').value = getToday();
+  $('local').value = 'CD Alça Viária';
   $('st').textContent = '';
   document.querySelectorAll('.bad').forEach((i) => i.classList.remove('bad'));
   document.querySelectorAll('.msg').forEach((m) => (m.textContent = ''));
 }
 
 /* ==========================================================================
-   5. CONSTRUÇÃO DO PDF (jsPDF) - OTIMIZADO PARA 1 PÁGINA COM FONTE MAIOR
+   5. CONSTRUÇÃO DO PDF (jsPDF)
    ========================================================================== */
 function buildPDF(scaleFactor, logoBase64) {
   const { jsPDF } = window.jspdf;
@@ -251,15 +287,15 @@ function buildPDF(scaleFactor, logoBase64) {
     doc.setFillColor(...COLOR_NAVY);
     doc.rect(M, y, CW, 5.8 * scaleFactor, 'F');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.8 * scaleFactor); // Aumentado (era 8.2)
+    doc.setFontSize(8.8 * scaleFactor);
     doc.setTextColor(255, 255, 255);
     doc.text(text, M + 2.5, y + 4.1 * scaleFactor);
     y += 5.8 * scaleFactor;
   };
 
   const renderParagraph = (text, size = 8.8, gap = 1.8, style = 'normal', color = [40, 40, 40]) => {
-    size *= scaleFactor; // Aumentado padrão (era 8.4)
-    gap *= scaleFactor;  // Reduzido espaçamento desnecessário (era 2.2)
+    size *= scaleFactor;
+    gap *= scaleFactor;
     doc.setFont('helvetica', style);
     doc.setFontSize(size);
     doc.setTextColor(...color);
@@ -285,16 +321,16 @@ function buildPDF(scaleFactor, logoBase64) {
       doc.rect(x, y, colWidth, height, 'FD');
       
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(6.5 * scaleFactor); // Aumentado (era 6.0)
+      doc.setFontSize(6.5 * scaleFactor);
       doc.setTextColor(...COLOR_NAVY);
       doc.text(label, x + 2, y + 3.2 * scaleFactor);
 
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9.5 * scaleFactor); // Aumentado (era 9.0)
+      doc.setFontSize(9.5 * scaleFactor);
       
       let formattedText = doc.splitTextToSize(value || '', colWidth - 4);
       if (formattedText.length > 1) {
-        doc.setFontSize(7.8 * scaleFactor); // Aumentado (era 7.2)
+        doc.setFontSize(7.8 * scaleFactor);
         formattedText = doc.splitTextToSize(value || '', colWidth - 4).slice(0, 2);
       }
       
@@ -329,15 +365,15 @@ function buildPDF(scaleFactor, logoBase64) {
   doc.setFontSize(8.2);
   doc.text('Preenchimento digital · Confirmação por gov.br ou WhatsApp', W - M, 15.5, { align: 'right' });
   
-  y = 33; // Ganho de 5mm no topo
+  y = 33;
 
   // --- CORPO DO DOCUMENTO ---
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12.5 * scaleFactor); // Aumentado (era 12)
+  doc.setFontSize(12.5 * scaleFactor);
   doc.setTextColor(...COLOR_NAVY);
   doc.text('TERMO DE AUTORIZAÇÃO PARA RETIRADA DE MERCADORIA', W / 2, y, { align: 'center' });
   
-  doc.setFontSize(8.5 * scaleFactor); // Aumentado (era 8)
+  doc.setFontSize(8.5 * scaleFactor);
   doc.setTextColor(...COLOR_ORANGE);
   doc.text('CONFIRMAÇÃO DO CLIENTE · CD ALÇA VIÁRIA', W / 2, y + 4.5 * scaleFactor, { align: 'center' });
   y += 7.5 * scaleFactor;
@@ -356,9 +392,14 @@ function buildPDF(scaleFactor, logoBase64) {
     ['NF-e Nº', getValue('nfe'), 1.1],
     ['ORÇAMENTO Nº', getValue('orc'), 1.1]
   ]);
+
+  const formaPgtoVal = getValue('forma_pgto');
+  const prazoVal = getValue('prazo');
+  const textoPagamento = prazoVal ? `${formaPgtoVal} — ${prazoVal}` : formaPgtoVal;
+
   renderGrid([
     ['VALOR TOTAL DA NOTA FISCAL (R$)', getValue('valor')],
-    ['PRAZO DE PAGAMENTO', getValue('prazo')]
+    ['FORMA DE PAGAMENTO / PRAZO', textoPagamento]
   ]);
   y += 1.8 * scaleFactor;
 
@@ -390,7 +431,7 @@ function buildPDF(scaleFactor, logoBase64) {
 
   renderBar('6. DAS RESPONSABILIDADES E DA VALIDADE');
   y += 0.8 * scaleFactor;
-  renderParagraph('a) A Distribuidora São Paulo somente libera a retirada mediante este termo confirmado pelo cliente (gov.br ou WhatsApp), prevenindo utilização indevida de cadastro.', 8.5, 1.0);
+  renderParagraph('a) A Distribuidora São Paulo somente libera a retirada mediante este termo confirmed pelo cliente (gov.br ou WhatsApp), prevenindo utilização indevida de cadastro.', 8.5, 1.0);
   renderParagraph('b) Efetuada a retirada, o representante assume a guarda e o transporte, respondendo por avarias e extravio até a entrega ao cliente destinatário.', 8.5, 1.0);
   renderParagraph('c) Autorização específica para a NF-e, o representante e o cliente aqui identificados, restrita à data e hora da retirada; produz efeitos após a confirmação do cliente (gov.br ou WhatsApp).', 8.5, 1.8);
 
@@ -398,8 +439,6 @@ function buildPDF(scaleFactor, logoBase64) {
   y += 0.8 * scaleFactor;
   renderParagraph('Opção 1 — Assinatura eletrônica gov.br', 9.2, 1.0, 'bold', COLOR_NAVY);
 
-  // --- ESPAÇO RESERVADO PARA ASSINATURA GOV.BR ---
-  // Ajustado dinamicamente para 18mm para garantir visualização limpa sem estourar página
   const govBoxHeight = 18 * scaleFactor;
   checkOverflow(govBoxHeight + 2);
   doc.setDrawColor(...COLOR_GRAY);
@@ -423,7 +462,7 @@ function buildPDF(scaleFactor, logoBase64) {
   ]);
 
   // --- BLOCO DE ASSINATURAS MANUAIS ---
-  y += 12 * scaleFactor; // Espaçamento dinâmico proporcional ao invés de fixo para prevenir estouro
+  y += 12 * scaleFactor;
   checkOverflow(12);
 
   const colWidth = (CW - 10) / 2;
@@ -467,13 +506,13 @@ function buildPDF(scaleFactor, logoBase64) {
 }
 
 function buildAutoFitPDF(logoBase64) {
-  // Tenta gerar a partir de uma escala maior (1.15 -> 115% do tamanho padrão) até 0.60
   for (let k = 1.15; k >= 0.60; k -= 0.01) {
     const pdfDoc = buildPDF(k, logoBase64);
     if (pdfDoc.getNumberOfPages() === 1) return pdfDoc;
   }
   return buildPDF(0.60, logoBase64);
 }
+
 /* ==========================================================================
    6. INICIALIZAÇÃO E EVENTOS
    ========================================================================== */

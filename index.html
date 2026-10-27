@@ -32,7 +32,8 @@
         <div id="st" role="status"></div>
         
         <div class="steps">
-            <b>Depois de gerar:</b> abra o PDF no assinador do gov.br (assinador.iti.br), assine como titular da NF-e e envie o arquivo assinado à Distribuidora. A assinatura aparece apenas na via digital.
+            <p style="margin: 0;"><b>1. Depois de gerar:</b> Abra o PDF no assinador do gov.br (assinador.iti.br), assine como titular da NF-e e envie à Distribuidora. A assinatura aparece apenas na via digital.</p>
+            <p style="margin: 0 0 6px 0;"><b>2. Documentação:</b> O retirante deve apresentar <strong>documento de identidade com foto (RG/CNH)</strong> no ato da retirada.</p>
         </div>
         <div class="steps" style="margin-top: 10px; font-size: 0.8rem;">
             <strong>🔒 LGPD e Privacidade:</strong> 
@@ -42,6 +43,14 @@
                 Lei nº 13.709/2018</a>).
         </div>
     </main>
+    <!-- Modal de Aviso para Pagamento À VISTA -->
+    <div id="modal-prazo" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3>⚠️ ATENÇÃO</h3>
+            <p>O PRAZO MÁXIMO PARA RETIRADA DE PEDIDOS PAGOS É DE <strong>7 DIAS</strong>.</p>
+            <button type="button" id="btn-fechar-modal" class="pri">Entendido</button>
+        </div>
+    </div>
     <footer>
         <div class="ft-content">
             <p>&copy; 2026 Distribuidora São Paulo · CNPJ 13.424.484/0001-48.</p>

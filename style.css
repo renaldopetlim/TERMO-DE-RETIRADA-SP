@@ -184,6 +184,26 @@ input.bad {
   border-color: var(--err);
 }
 
+input, select {
+  width: 100%;
+  font: inherit;
+  font-size: 1rem;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+input:focus, select:focus {
+  outline: 2px solid var(--acc);
+  outline-offset: 1px;
+}
+
+input.bad, select.bad {
+  border-color: var(--err);
+}
+
 .msg {
   font-size: 0.78rem;
   color: var(--err);
@@ -353,4 +373,66 @@ footer {
 
 .dev-icon {
   flex-shrink: 0;
+}
+
+/* ==========================================================================
+   10. Modal / Pop-up
+   ========================================================================== */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  padding: 16px;
+  backdrop-filter: blur(2px);
+}
+
+.modal-overlay.hidden {
+  display: none;
+}
+
+.modal-content {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+  animation: modalFadeIn 0.25s ease-out;
+}
+
+.modal-content h3 {
+  margin: 0 0 12px;
+  color: var(--acc);
+  font-size: 1.2rem;
+}
+
+.modal-content p {
+  color: var(--ink);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
+.modal-content button {
+  width: 100%;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
