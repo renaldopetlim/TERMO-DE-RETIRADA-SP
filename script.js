@@ -1,6 +1,12 @@
 /* ==========================================================================
    1. ESTRUTURA DE DADOS E SCHEMA DO FORMULÁRIO
    ========================================================================== */
+
+/**
+ * SCHEMA: Matriz de configuração que define a estrutura visual e os campos do formulário.
+ * Estrutura de cada item: [Título do Grupo, [Campos...]]
+ * Estrutura de cada campo: [id, label, tipo, classe_css, opcoes_select]
+ */
 const SCHEMA = [
   ['Identificação', [
     ['pedido', 'Nº do pedido'],
@@ -32,6 +38,9 @@ const SCHEMA = [
   ]]
 ];
 
+/**
+ * REQ: Array contendo a lista de IDs de campos cujo preenchimento é obrigatório.
+ */
 const REQ = [
   'pedido', 'emissao', 'cliente', 'doc', 'orc', 
   'valor', 'forma_pgto', 'rep', 'repcpf', 'dret'
@@ -40,12 +49,26 @@ const REQ = [
 /* ==========================================================================
    2. FUNÇÕES UTILITÁRIAS E HELPER DOM
    ========================================================================== */
+
+/** Atalho para document.getElementById(id) */
 const $ = (id) => document.getElementById(id);
+
+/** Obtém o valor de um campo de entrada sem espaços extras nas extremidades */
 const getValue = (id) => ($(id).value || '').trim();
+
+/** Remove todos os caracteres não numéricos de uma string */
 const onlyDigits = (str) => str.replace(/\D/g, '');
 
+/** Aplica a máscara visual de CPF (000.000.000-00) */
 const maskCPF = (str) => str.replace(/(\d{3})(\d{3})(\d{3})(\d{0,2})/, '$1.$2.$3-$4');
+
+/** Aplica a máscara visual de CNPJ (00.000.000/0000-00) */
 const maskCNPJ = (str) => str.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{0,2})/, '$1.$2.$3/$4-$5');
+
+/**
+ * Aplica a máscara visual de telefone/WhatsApp com suporte a 10 ou 11 dígitos:
+ * (00) 0000-0000 ou (00) 00000-0000
+ */
 const maskPhone = (str) => {
   const digits = onlyDigits(str).slice(0, 11);
   if (digits.length <= 10) {
@@ -54,6 +77,7 @@ const maskPhone = (str) => {
   return digits.replace(/(\d{2})(\d{5})(\d{0,4})/, '($1) $2-$3').replace(/-$/, '');
 };
 
+/** Converte datas do formato ISO/HTML (AAAA-MM-DD) para o formato brasileiro (DD/MM/AAAA) */
 const formatDate = (str) => {
   if (!str) return '';
   const parts = str.split('T');
@@ -61,13 +85,15 @@ const formatDate = (str) => {
   return parts.length > 1 ? `${dateRev} ${parts[1]}` : dateRev;
 };
 
+/** Retorna a data atual no fuso horário local no formato AAAA-MM-DD */
 const getToday = () => {
   const tzOffset = new Date().getTimezoneOffset() * 60000;
   return new Date(Date.now() - tzOffset).toISOString().slice(0, 10);
 };
 
 /**
- * Converte a imagem da pasta assets para Base64 dinamicamente
+ * Converte uma imagem de uma URL (ex: pasta assets) em uma string Base64 via <canvas>,
+ * permitindo que a imagem seja anexada ao PDF dinamicamente.
  */
 function getBase64ImageFromUrl(url) {
   return new Promise((resolve, reject) => {
@@ -87,8 +113,10 @@ function getBase64ImageFromUrl(url) {
 }
 
 /* ==========================================================================
-   3. VALIDAÇÕES SENSÍVEIS (CPF / CNPJ)
+   3. VALIDAÇÕES SENSÍVEIS (CPF / CNPJ / FORMULÁRIO)
    ========================================================================== */
+
+/** Valida os dígitos verificadores de um número de CPF e rejeita sequências repetidas */
 function validateCPF(str) {
   const s = onlyDigits(str);
   if (s.length !== 11 || /^(\d)\1+$/.test(s)) return false;
@@ -101,6 +129,7 @@ function validateCPF(str) {
   return true;
 }
 
+/** Valida os dígitos verificadores de um número de CNPJ e rejeita sequências repetidas */
 function validateCNPJ(str) {
   const s = onlyDigits(str);
   if (s.length !== 14 || /^(\d)\1+$/.test(s)) return false;
@@ -116,6 +145,13 @@ function validateCNPJ(str) {
   return true;
 }
 
+/**
+ * Valida o formulário completo antes de submeter:
+ * - Limpa avisos e erros anteriores;
+ * - Verifica obrigatoriedade dos campos (REQ);
+ * - Executa validação de CPF/CNPJ;
+ * - Faz rolagens de tela até o primeiro campo inválido, se houver.
+ */
 function validateForm() {
   let ok = true;
   let firstInvalid = null;
@@ -130,10 +166,12 @@ function validateForm() {
     firstInvalid = firstInvalid || $(id);
   };
 
+  // Verifica campos obrigatórios
   REQ.forEach((id) => {
     if (!getValue(id)) setBad(id, 'Campo obrigatório');
   });
 
+  // Validação matemática de CPF ou CNPJ no campo 'doc'
   const docDigits = onlyDigits(getValue('doc'));
   if (docDigits) {
     const isValid = docDigits.length === 11 
@@ -145,10 +183,12 @@ function validateForm() {
     if (!isValid) setBad('doc', 'CPF/CNPJ inválido');
   }
 
+  // Validação do CPF do representante
   if (getValue('repcpf') && !validateCPF(getValue('repcpf'))) {
     setBad('repcpf', 'CPF inválido');
   }
 
+  // Rola a página suavemente até o primeiro campo incorreto
   if (firstInvalid) {
     firstInvalid.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
@@ -157,8 +197,10 @@ function validateForm() {
 }
 
 /* ==========================================================================
-   4. RENDERIZAÇÃO DO FORMULÁRIO E EVENTOS
+   4. RENDERIZAÇÃO DO FORMULÁRIO E TRATAMENTO DE EVENTOS
    ========================================================================== */
+
+/** Renderiza dinamicamente os elementos HTML do formulário com base nas definições do SCHEMA */
 function renderForm() {
   $('f').innerHTML = SCHEMA.map(([title, fields]) => `
     <fieldset>
@@ -183,16 +225,30 @@ function renderForm() {
   `).join('');
 }
 
+/** Associa eventos de entrada, máscaras e regras de negócio aos elementos do DOM */
 function attachInputEvents() {
-  // --- POP-UP A VISTA ---
+  // --- CONTROLE DE PAGAMENTO "A VISTA" E PRAZO ---
   const formaPgtoSelect = $('forma_pgto');
+  const prazoInput = $('prazo');
   const modal = $('modal-prazo');
   const btnFecharModal = $('btn-fechar-modal');
 
   if (formaPgtoSelect) {
     formaPgtoSelect.addEventListener('change', (e) => {
       if (e.target.value === 'A VISTA') {
-        modal.classList.remove('hidden');
+        // Exibe o modal informativo (se existente)
+        if (modal) modal.classList.remove('hidden');
+        
+        // Bloqueia e limpa o campo de prazo
+        if (prazoInput) {
+          prazoInput.value = '';
+          prazoInput.disabled = true;
+        }
+      } else {
+        // Desbloqueia o campo prazo para outras opções de pagamento
+        if (prazoInput) {
+          prazoInput.disabled = false;
+        }
       }
     });
   }
@@ -211,16 +267,19 @@ function attachInputEvents() {
     });
   }
 
-  // --- MÁSCARAS ---
+  // --- MÁSCARAS AUTOMÁTICAS ---
+  // Aplicação de máscara dinâmica para CPF (11) ou CNPJ (14)
   $('doc').addEventListener('input', (e) => {
     const d = onlyDigits(e.target.value).slice(0, 14);
     e.target.value = d.length <= 11 ? maskCPF(d) : maskCNPJ(d);
   });
 
+  // Máscara de CPF do representante
   $('repcpf').addEventListener('input', (e) => {
     e.target.value = maskCPF(onlyDigits(e.target.value).slice(0, 11));
   });
 
+  // Formatação monetária (R$) em tempo real
   $('valor').addEventListener('input', (e) => {
     const d = onlyDigits(e.target.value);
     if (!d) {
@@ -233,10 +292,12 @@ function attachInputEvents() {
     });
   });
 
+  // Máscara de telefone/WhatsApp
   $('zap').addEventListener('input', (e) => {
     e.target.value = maskPhone(e.target.value);
   });
 
+  // Formatação de placa de veículo (ABC-1234)
   $('placa').addEventListener('input', (e) => {
     let v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
     if (v.length > 3) {
@@ -245,6 +306,7 @@ function attachInputEvents() {
     e.target.value = v;
   });
 
+  // Converte automaticamente nomes de cliente e representante para maiúsculas
   ['cliente', 'rep'].forEach((id) => {
     $(id).addEventListener('blur', (e) => {
       e.target.value = e.target.value.toUpperCase();
@@ -252,8 +314,10 @@ function attachInputEvents() {
   });
 }
 
+/** Restaura os campos do formulário para os valores padrão e limpa erros visuais */
 function resetForm() {
   document.querySelectorAll('input, select').forEach((i) => (i.value = ''));
+  if ($('prazo')) $('prazo').disabled = false;
   $('emissao').value = getToday();
   $('dret').value = getToday();
   $('local').value = 'CD Alça Viária';
@@ -265,6 +329,13 @@ function resetForm() {
 /* ==========================================================================
    5. CONSTRUÇÃO DO PDF (jsPDF)
    ========================================================================== */
+
+/**
+ * Constrói e formata o documento PDF a partir dos dados do formulário.
+ * @param {number} scaleFactor - Fator de escala para ajuste proporcional de fontes e espaçamentos.
+ * @param {string|null} logoBase64 - String Base64 da logomarca a ser inserida no cabeçalho.
+ * @returns {jsPDF} Instância do objeto PDF gerado.
+ */
 function buildPDF(scaleFactor, logoBase64) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
@@ -275,6 +346,7 @@ function buildPDF(scaleFactor, logoBase64) {
   const COLOR_GRAY = [90, 98, 112];
   let y = 0;
 
+  /** Verifica se o conteúdo ultrapassará a página e cria nova página se necessário */
   const checkOverflow = (height) => {
     if (y + height > 272) {
       doc.addPage();
@@ -282,6 +354,7 @@ function buildPDF(scaleFactor, logoBase64) {
     }
   };
 
+  /** Desenha uma barra de cabeçalho de seção no PDF */
   const renderBar = (text) => {
     checkOverflow(9.5 * scaleFactor);
     doc.setFillColor(...COLOR_NAVY);
@@ -293,6 +366,7 @@ function buildPDF(scaleFactor, logoBase64) {
     y += 5.8 * scaleFactor;
   };
 
+  /** Renderiza um parágrafo formatado com quebra automática de linha */
   const renderParagraph = (text, size = 8.8, gap = 1.8, style = 'normal', color = [40, 40, 40]) => {
     size *= scaleFactor;
     gap *= scaleFactor;
@@ -306,6 +380,7 @@ function buildPDF(scaleFactor, logoBase64) {
     y += lines.length * size * 0.38 + gap;
   };
 
+  /** Renderiza uma grade/tabela de campos chave-valor lado a lado */
   const renderGrid = (items, height = 10.2) => {
     height *= scaleFactor;
     checkOverflow(height);
@@ -342,7 +417,7 @@ function buildPDF(scaleFactor, logoBase64) {
     y += height;
   };
 
-  // --- CABEÇALHO DO PDF ---
+  // --- CABEÇALHO VISUAL DO PDF ---
   doc.setFillColor(...COLOR_NAVY);
   doc.rect(0, 0, W, 23, 'F');
   doc.setFillColor(...COLOR_ORANGE);
@@ -367,7 +442,7 @@ function buildPDF(scaleFactor, logoBase64) {
   
   y = 33;
 
-  // --- CORPO DO DOCUMENTO ---
+  // --- ESTRUTURA DO DOCUMENTO ---
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12.5 * scaleFactor);
   doc.setTextColor(...COLOR_NAVY);
@@ -431,7 +506,7 @@ function buildPDF(scaleFactor, logoBase64) {
 
   renderBar('6. DAS RESPONSABILIDADES E DA VALIDADE');
   y += 0.8 * scaleFactor;
-  renderParagraph('a) A Distribuidora São Paulo somente libera a retirada mediante este termo confirmed pelo cliente (gov.br ou WhatsApp), prevenindo utilização indevida de cadastro.', 8.5, 1.0);
+  renderParagraph('a) A Distribuidora São Paulo somente libera a retirada mediante este termo confirmado pelo cliente (gov.br ou WhatsApp), prevenindo utilização indevida de cadastro.', 8.5, 1.0);
   renderParagraph('b) Efetuada a retirada, o representante assume a guarda e o transporte, respondendo por avarias e extravio até a entrega ao cliente destinatário.', 8.5, 1.0);
   renderParagraph('c) Autorização específica para a NF-e, o representante e o cliente aqui identificados, restrita à data e hora da retirada; produz efeitos após a confirmação do cliente (gov.br ou WhatsApp).', 8.5, 1.8);
 
@@ -439,6 +514,7 @@ function buildPDF(scaleFactor, logoBase64) {
   y += 0.8 * scaleFactor;
   renderParagraph('Opção 1 — Assinatura eletrônica gov.br', 9.2, 1.0, 'bold', COLOR_NAVY);
 
+  // Espaço pontilhado para caixa de assinatura do gov.br
   const govBoxHeight = 18 * scaleFactor;
   checkOverflow(govBoxHeight + 2);
   doc.setDrawColor(...COLOR_GRAY);
@@ -487,7 +563,7 @@ function buildPDF(scaleFactor, logoBase64) {
     doc.text(subtitle, x + colWidth / 2, y + 7.0 * scaleFactor, { align: 'center' });
   });
 
-  // --- RODAPÉ FIXO ---
+  // --- RODAPÉ FIXO EM TODAS AS PÁGINAS ---
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
@@ -505,6 +581,10 @@ function buildPDF(scaleFactor, logoBase64) {
   return doc;
 }
 
+/**
+ * Tenta ajustar iterativamente o tamanho dos elementos para que o PDF ocupe
+ * exatamente UMA página A4. Se não for possível, retorna no menor fator aceito (0.60).
+ */
 function buildAutoFitPDF(logoBase64) {
   for (let k = 1.15; k >= 0.60; k -= 0.01) {
     const pdfDoc = buildPDF(k, logoBase64);
@@ -514,19 +594,24 @@ function buildAutoFitPDF(logoBase64) {
 }
 
 /* ==========================================================================
-   6. INICIALIZAÇÃO E EVENTOS
+   6. INICIALIZAÇÃO E EVENTOS GLOBAIS
    ========================================================================== */
+
 document.addEventListener('DOMContentLoaded', () => {
+  // Inicialização do formulário
   renderForm();
   attachInputEvents();
   resetForm();
 
+  // Ação do botão "Limpar"
   $('clr').onclick = resetForm;
 
+  // Ação do botão "Gerar PDF"
   $('go').onclick = async () => {
     const statusEl = $('st');
     statusEl.style.color = '';
 
+    // Cancela se houver campos inválidos no formulário
     if (!validateForm()) {
       statusEl.style.color = 'var(--err)';
       statusEl.textContent = 'Corrija os campos destacados.';
@@ -536,6 +621,7 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       statusEl.textContent = 'Gerando PDF...';
 
+      // Tenta carregar a logo antes da criação do arquivo
       let logoBase64 = null;
       try {
         logoBase64 = await getBase64ImageFromUrl('assets/logo.png');
@@ -543,10 +629,12 @@ document.addEventListener('DOMContentLoaded', () => {
         console.warn('Não foi possível carregar a imagem assets/logo.png. Gerando sem logo.', e);
       }
 
+      // Gera o documento ajustado
       const pdfDoc = buildAutoFitPDF(logoBase64);
       const cleanPedido = getValue('pedido').replace(/[^\w-]+/g, '_');
       const filename = `Termo_Retirada_Pedido_${cleanPedido}.pdf`;
 
+      // Suporte para download em ambientes integrados (API Claude / Custom SDKs)
       let downloadsAPI = null;
       try {
         if (typeof claude !== 'undefined' && claude.use) {
@@ -562,6 +650,7 @@ document.addEventListener('DOMContentLoaded', () => {
         statusEl.style.color = 'var(--ok)';
         statusEl.textContent = 'PDF gerado. Agora é só assinar no gov.br.';
       } else {
+        // Download padrão do navegador
         pdfDoc.save(filename);
         statusEl.style.color = 'var(--ok)';
         statusEl.textContent = 'PDF gerado com sucesso!';
